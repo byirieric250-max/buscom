@@ -1,0 +1,25 @@
+databases:
+  - name: buscom-postgres
+    plan: free
+    databaseName: buscom
+    user: buscom
+
+services:
+  - type: web
+    name: buscom-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: bash build.sh
+    startCommand: gunicorn config.wsgi:application
+    healthCheckPath: /api/health/
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: buscom-postgres
+          property: connectionString
+      - key: DJANGO_DEBUG
+        value: "false"
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_ALLOWED_HOSTS
+        value: buscom-backend.onrender.com

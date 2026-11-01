@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, CalendarDays, Check, ChevronDown, Clock3, Heart, MapPin, MessageCircle, PackageCheck, Search, ShoppingBag, Star, Store, X } from 'lucide-react';
+import { apiUrl } from './api';
 
 type Business = { id:string; slug:string; name:string; description:string; category_name:string; district:string; sector:string; phone:string; email:string; address:string; verification_status:string };
 type Product = { id:string; business:string; business_name:string; category_name:string; name:string; description:string; price:string|number; price_per_kg?:string|number|null; stock:number; image_url:string; image_file?:string|null; video_file?:string|null; district:string; active?:boolean; vat_category?:'standard'|'zero_rated'|'exempt'; business_tax_registration?:string; prices_include_vat?:boolean };
@@ -21,7 +22,7 @@ const heroImages=[
 ];
 const money=(value:string|number)=>new Intl.NumberFormat('en-RW').format(Number(value))+' RWF';
 const getRows=<T,>(data:any):T[]=>Array.isArray(data)?data:Array.isArray(data?.results)?data.results:[];
-async function api<T=any>(path:string, init?:RequestInit):Promise<T>{const token=localStorage.getItem('imena-token');const headers=new Headers(init?.headers);if(!(init?.body instanceof FormData)&&!headers.has('Content-Type'))headers.set('Content-Type','application/json');if(token)headers.set('Authorization',`Token ${token}`);const response=await fetch('/api'+path,{...init,headers});const data=await response.json().catch(()=>({detail:'The server returned an unreadable response.'}));if(!response.ok)throw new Error(data.detail||Object.values(data).flat().join(' ' )||`Request failed (${response.status})`);return data}
+async function api<T=any>(path:string, init?:RequestInit):Promise<T>{const token=localStorage.getItem('imena-token');const headers=new Headers(init?.headers);if(!(init?.body instanceof FormData)&&!headers.has('Content-Type'))headers.set('Content-Type','application/json');if(token)headers.set('Authorization',`Token ${token}`);const response=await fetch(apiUrl('/api'+path),{...init,headers});const data=await response.json().catch(()=>({detail:'The server returned an unreadable response.'}));if(!response.ok)throw new Error(data.detail||Object.values(data).flat().join(' ' )||`Request failed (${response.status})`);return data}
 
 export default function Marketplace(){
  const [businesses,setBusinesses]=useState<Business[]>([]),[products,setProducts]=useState<Product[]>([]),[services,setServices]=useState<Service[]>([]),[businessProducts,setBusinessProducts]=useState<Product[]>([]),[businessServices,setBusinessServices]=useState<Service[]>([]),[categories,setCategories]=useState<any[]>([]),[reviews,setReviews]=useState<Review[]>([]);

@@ -4,6 +4,10 @@
 
 Use a PostgreSQL instance plus a Python web service rooted at `backend/`. Install `requirements.txt`; start with `gunicorn config.wsgi:application` (add `gunicorn` to production requirements); build frontend with `npm ci && npm run build`; publish `frontend/dist` through a static site or same-origin reverse proxy. Configure `DATABASE_URL`, `DJANGO_SECRET_KEY`, `DJANGO_DEBUG=false`, `DJANGO_ALLOWED_HOSTS`, and `CORS_ALLOWED_ORIGINS` in the host environment. Run `python manage.py migrate` and `python manage.py collectstatic --noinput` on deploy. Configure TLS and health check `/api/health/`.
 
+For an automated Render setup, the repository includes `render.yaml`. The Render Blueprint must use a PostgreSQL database and a Python web service with root directory `backend`, build command `bash build.sh`, and start command `gunicorn config.wsgi:application`.
+
+For Vercel, set the frontend root directory to `frontend`, build command to `npm ci && npm run build`, and publish directory to `dist`. Set `VITE_API_BASE_URL=https://<render-backend-host>` as a Vercel environment variable. The value must include no trailing slash. Deploy again after changing this variable because Vite embeds it into the production bundle.
+
 ## Production readiness checklist
 
 - [ ] Create business-owner and customer onboarding flows, email verification, password reset and account recovery.
