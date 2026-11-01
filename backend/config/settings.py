@@ -25,8 +25,15 @@ STATIC_URL='/static/'; STATIC_ROOT=BASE_DIR/'staticfiles'; DEFAULT_AUTO_FIELD='d
 MEDIA_URL='/media/'; MEDIA_ROOT=BASE_DIR/'media'
 FILE_UPLOAD_MAX_MEMORY_SIZE=5*1024*1024
 DATA_UPLOAD_MAX_MEMORY_SIZE=250*1024*1024
-CORS_ALLOWED_ORIGINS=[origin.strip() for origin in os.getenv('CORS_ALLOWED_ORIGINS','http://localhost:5173,http://127.0.0.1:5173').split(',') if origin.strip()]
-CSRF_TRUSTED_ORIGINS=[origin.strip() for origin in os.getenv('CSRF_TRUSTED_ORIGINS','http://localhost:5173,http://127.0.0.1:5173').split(',') if origin.strip()]
+CORS_ALLOWED_ORIGINS=[origin.strip() for origin in os.getenv(
+    'CORS_ALLOWED_ORIGINS',
+    'http://localhost:5173,http://127.0.0.1:5173,https://buscom-frontend.vercel.app,https://buscom-frontend-3fqyy3z0b-byirieric250-maxs-projects.vercel.app',
+).split(',') if origin.strip()]
+CORS_ALLOWED_ORIGIN_REGEXES=[r'^https://.*\.vercel\.app$']
+CSRF_TRUSTED_ORIGINS=[origin.strip() for origin in os.getenv(
+    'CSRF_TRUSTED_ORIGINS',
+    'http://localhost:5173,http://127.0.0.1:5173,https://buscom-frontend.vercel.app,https://buscom-frontend-3fqyy3z0b-byirieric250-maxs-projects.vercel.app',
+).split(',') if origin.strip()]
 EMAIL_HOST=os.getenv('EMAIL_HOST','')
 EMAIL_PORT=int(os.getenv('EMAIL_PORT','587'))
 EMAIL_USE_TLS=os.getenv('EMAIL_USE_TLS','true').lower()=='true'
