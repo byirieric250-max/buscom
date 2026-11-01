@@ -6,8 +6,9 @@ from commerce.models import Category,Business,Product,Service
 class Command(BaseCommand):
  help='Create clearly labeled demonstration listings; no real customer accounts or sales.'
  def handle(self,*args,**options):
-  user,created=get_user_model().objects.get_or_create(username='demo-maker',defaults={'email':'demo@example.invalid','first_name':'Demo Maker'})
-  if created: user.set_password('demo-only-change-me')
+  user,_=get_user_model().objects.get_or_create(username='imena',defaults={'email':'imena@imena.rw','first_name':'Imena'})
+  user.email='imena@imena.rw'
+  user.set_password('admin@12345')
   user.is_staff=True
   user.is_superuser=True
   user.save()

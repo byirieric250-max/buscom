@@ -55,7 +55,11 @@ class RegisterView(APIView):
 class LoginView(APIView):
  permission_classes=[AllowAny]
  def post(self,request):
-  user=authenticate(username=request.data.get('username') or request.data.get('email'),password=request.data.get('password'))
+  login_value=request.data.get('username') or request.data.get('email')
+  User=get_user_model()
+  matching_user=User.objects.filter(email__iexact=login_value).first() if login_value else None
+  username=matching_user.username if matching_user else login_value
+  user=authenticate(username=username,password=request.data.get('password'))
   if not user: return Response({'detail':'Those sign-in details did not match.'},status=400)
   token,_=Token.objects.get_or_create(user=user); return Response({'token':token.key,'user':{'id':user.pk,'username':user.username,'email':user.email,'is_staff':user.is_staff,'is_superuser':user.is_superuser}})
 class MeView(APIView):
