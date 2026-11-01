@@ -10,3 +10,4 @@ backend/.env
 backend/media/
 backend/staticfiles/
 *.log
+*.tsbuildinfo
