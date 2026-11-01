@@ -1,0 +1,12 @@
+{% extends "admin/change_form.html" %}
+
+{% block submit_buttons_bottom %}
+  {{ block.super }}
+  {% if original and original.verification_status != "verified" %}
+    <div class="submit-row">
+      <input type="submit" value="Approve business application" name="_approve_application" class="default">
+      <input type="submit" value="Reject application" name="_reject_application" class="deletelink">
+    </div>
+    <p class="help">Approval requires an approved RDB registration or TIN certificate and owner ID. VAT registered businesses also need an approved VAT certificate. Review documents under Business verifications first.</p>
+  {% endif %}
+{% endblock %}
