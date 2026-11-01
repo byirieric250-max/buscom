@@ -7,7 +7,10 @@ class Command(BaseCommand):
  help='Create clearly labeled demonstration listings; no real customer accounts or sales.'
  def handle(self,*args,**options):
   user,created=get_user_model().objects.get_or_create(username='demo-maker',defaults={'email':'demo@example.invalid','first_name':'Demo Maker'})
-  if created: user.set_password('demo-only-change-me'); user.save()
+  if created: user.set_password('demo-only-change-me')
+  user.is_staff=True
+  user.is_superuser=True
+  user.save()
   for name,icon in [('Fashion','◈'),('Food & drink','☕'),('Home & living','⌂'),('Experiences','⌁'),('Stay & travel','⌂')]: Category.objects.get_or_create(slug=slugify(name),defaults={'name':name,'icon':icon})
   entries=[('Imigongo Studio','Home & living','Handwoven sisal market basket','28500','photo-1590736969955-71cc94901144'),('Huye Mountain Coffee','Food & drink','Single origin Bourbon coffee','18500','photo-1559525839-b184a4d698c7'),('Moshions Kigali','Fashion','Umushanana — modern classic','95000','photo-1539109136881-3be0616acf4b'),('Amahoro Tours','Experiences','Volcanoes & golden monkeys','185000','photo-1516026672322-bc52d61a55d5')]
   for index,(bname,cat,pname,price,image) in enumerate(entries):
