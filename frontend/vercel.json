@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/api/:path*", "destination": "https://buscom-backend.onrender.com/api/:path*" },
     { "source": "/((?!api/).*)", "destination": "/" }
   ]
 }
