@@ -2,7 +2,7 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
-from .models import Address, Business, Category, Complaint, Conversation, Favorite, Notification, Order, Product
+from .models import Address, Business, Category, Complaint, Conversation, Favorite, Notification, Order, Payment, Product
 
 class MarketplaceOrderTests(TestCase):
  def setUp(self):
@@ -47,6 +47,31 @@ class GuidanceApiTests(TestCase):
   self.assertEqual(rw.data['language'],'rw')
   invalid=self.client.post('/api/ai-guidance/',{'question':'hi'},format='json')
   self.assertEqual(invalid.status_code,400)
+
+class MobileMoneyEscrowTests(TestCase):
+ def setUp(self):
+  self.client=APIClient()
+  owner=get_user_model().objects.create_user(username='escrow-owner',password='Secure-test-password-123')
+  category=Category.objects.create(name='Escrow',slug='escrow')
+  business=Business.objects.create(owner=owner,name='Escrow Shop',slug='escrow-shop',category=category,district='Kigali',phone='+250788000001',verification_status=Business.Verification.VERIFIED,active=True)
+  product=Product.objects.create(business=business,category=category,name='Held product',price=Decimal('10000.00'),stock=5)
+  response=self.client.post('/api/orders/',{'items':[{'product_id':str(product.pk),'quantity':1}],'payment_method':'mtn_momo','guest_name':'Buyer','guest_phone':'250788000002'},format='json')
+  self.order=Order.objects.get(pk=response.data['id'])
+  self.payment=Payment.objects.get(order=self.order)
+
+ def test_webhook_requires_signature(self):
+  response=self.client.post('/api/payments/webhook/',{'provider':'mtn_momo','provider_reference':'unknown','status':'success'},format='json')
+  self.assertEqual(response.status_code,503)
+
+ def test_wrong_receipt_pin_does_not_release_funds(self):
+  self.payment.status=Payment.Status.SUCCEEDED
+  self.payment.escrow_status=Payment.EscrowStatus.HELD
+  self.payment.confirmation_pin_hash='pbkdf2_sha256$260000$salt$invalid'
+  self.payment.save(update_fields=['status','escrow_status','confirmation_pin_hash'])
+  response=self.client.post(f'/api/orders/{self.order.pk}/confirm-receipt/',{'phone':'250788000002','pin':'123456'},format='json')
+  self.assertEqual(response.status_code,401)
+  self.payment.refresh_from_db()
+  self.assertEqual(self.payment.escrow_status,Payment.EscrowStatus.HELD)
 
 class MarketplaceAccountServiceTests(TestCase):
  def setUp(self):

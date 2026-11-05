@@ -28,6 +28,30 @@ services:
         value: https://buscom-frontend-3fqyy3z0b-byirieric250-maxs-projects.vercel.app,https://buscom-frontend.vercel.app
       - key: CSRF_TRUSTED_ORIGINS
         value: https://buscom-frontend-3fqyy3z0b-byirieric250-maxs-projects.vercel.app,https://buscom-frontend.vercel.app
+      - key: MOBILE_MONEY_WEBHOOK_SECRET
+        sync: false
+      - key: MTN_MOMO_SUBSCRIPTION_KEY
+        sync: false
+      - key: MTN_MOMO_API_USER
+        sync: false
+      - key: MTN_MOMO_API_KEY
+        sync: false
+      - key: MTN_MOMO_TRANSFER_API_USER
+        sync: false
+      - key: MTN_MOMO_TRANSFER_API_KEY
+        sync: false
+      - key: MTN_MOMO_TRANSFER_SUBSCRIPTION_KEY
+        sync: false
+      - key: AIRTEL_MONEY_CLIENT_ID
+        sync: false
+      - key: AIRTEL_MONEY_CLIENT_SECRET
+        sync: false
+      - key: AIRTEL_MONEY_COLLECTION_URL
+        sync: false
+      - key: AIRTEL_MONEY_DISBURSEMENT_URL
+        sync: false
+      - key: AIRTEL_MONEY_TOKEN_URL
+        sync: false
       - key: AI_GUIDANCE_API_URL
         value: https://api.openai.com/v1/chat/completions
       - key: AI_GUIDANCE_API_KEY

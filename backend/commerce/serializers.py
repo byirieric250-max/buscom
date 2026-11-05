@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Address, Business, Category, Complaint, Conversation, Favorite, Message, Notification, Product, Order, OrderItem, Booking, Service, Review
+from .models import Address, Business, Category, Complaint, Conversation, Favorite, Message, Notification, Product, Order, OrderItem, Booking, Service, Review, Payment
 class CategorySerializer(serializers.ModelSerializer):
  class Meta: model=Category; fields='__all__'
 class BusinessSerializer(serializers.ModelSerializer):
@@ -27,7 +27,10 @@ class OrderItemSerializer(serializers.ModelSerializer):
  class Meta: model=OrderItem; fields=['product','product_name','unit_price','price_per_kg','quantity','line_total','vat_category','vat_rate','vat_amount','vat_included','business']
 class OrderSerializer(serializers.ModelSerializer):
  items=OrderItemSerializer(many=True,read_only=True)
- class Meta: model=Order; fields=['id','reference','status','payment_method','subtotal','tax_total','delivery_fee','total','items','created_at']
+ payments=serializers.SerializerMethodField()
+ def get_payments(self,order):
+  return [{'provider':p.provider,'status':p.status,'escrow_status':p.escrow_status,'held_at':p.held_at,'released_at':p.released_at,'buyer_confirmed_at':p.buyer_confirmed_at} for p in order.payments.all()]
+ class Meta: model=Order; fields=['id','reference','status','payment_method','subtotal','tax_total','delivery_fee','total','items','payments','created_at']
 class BookingSerializer(serializers.ModelSerializer):
  business_name=serializers.CharField(source='service.business.name',read_only=True); service_name=serializers.CharField(source='service.name',read_only=True)
  class Meta: model=Booking; fields=['id','reference','service','service_name','business_name','starts_at','ends_at','party_size','unit_price','subtotal','vat_category','vat_rate','vat_amount','vat_included','total','notes','status','created_at']; read_only_fields=['id','reference','unit_price','subtotal','vat_category','vat_rate','vat_amount','vat_included','total','status','created_at']

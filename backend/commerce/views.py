@@ -9,6 +9,7 @@ from datetime import timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth.hashers import check_password, make_password
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import FileResponse, Http404
@@ -27,6 +28,7 @@ from rest_framework.authtoken.models import Token
 from .models import Address, AuditLog, Booking, Business, BusinessVerification, Category, Complaint, Conversation, Favorite, InventoryMovement, Message, Notification, Order, OrderItem, Payment, Product, Review, Service
 from .serializers import AddressSerializer, BookingSerializer, BusinessSerializer, CategorySerializer, ComplaintSerializer, ConversationSerializer, FavoriteSerializer, NotificationSerializer, OrderSerializer, ProductSerializer, ReviewSerializer, ServiceSerializer
 from .receipts import send_order_receipt
+from .payments import request_collection, transfer_to_seller
 
 class HealthView(APIView):
  permission_classes=[AllowAny]
@@ -288,6 +290,59 @@ class OrderViewSet(viewsets.ModelViewSet):
     transaction.on_commit(lambda order_id=order.pk: send_order_receipt(order_id))
     return Response(OrderSerializer(order).data,status=201)
   except (ValueError,KeyError,TypeError): return Response({'detail':'Invalid order information.'},status=400)
+ @action(detail=True,methods=['post'],permission_classes=[AllowAny],url_path='initiate-mobile-money')
+ def initiate_mobile_money(self,request,pk=None):
+  if request.user.is_authenticated:
+   order=self.get_queryset().filter(pk=pk).first()
+  else:
+   order=Order.objects.filter(pk=pk,guest_phone=request.data.get('phone','').strip()).prefetch_related('items').first()
+  if order is None: return Response({'detail':'The order was not found for this buyer.'},status=404)
+  payment=order.payments.filter(provider__in=['mtn_momo','airtel_money']).first()
+  if payment is None: return Response({'detail':'This order has no Mobile Money payment.'},status=400)
+  phone=request.data.get('phone','').strip() or order.guest_phone
+  if not phone: return Response({'detail':'Enter the Mobile Money phone number used to pay.'},status=400)
+  try:
+   reference=request_collection(payment,phone)
+  except RuntimeError as exc:
+   return Response({'detail':str(exc)},status=503)
+  payment.provider_reference=reference; payment.escrow_status=Payment.EscrowStatus.PENDING
+  payment.save(update_fields=['provider_reference','escrow_status'])
+  return Response({'detail':'Payment requested. Funds will be held until the buyer confirms receipt.','provider':payment.provider,'escrow_status':'pending'})
+ @action(detail=True,methods=['post'],permission_classes=[AllowAny],url_path='confirm-receipt')
+ def confirm_receipt(self,request,pk=None):
+  order=Order.objects.filter(pk=pk).prefetch_related('items__business').first()
+  if order is None: return Response({'detail':'Order not found.'},status=404)
+  if request.user.is_authenticated:
+   authorized=request.user.id==order.customer_id
+  else:
+   authorized=bool(order.guest_phone) and order.guest_phone==request.data.get('phone','').strip()
+  if not authorized: return Response({'detail':'Only the buyer can confirm receipt.'},status=403)
+  pin=str(request.data.get('pin','')).strip()
+  if len(pin)!=6 or not pin.isdigit(): return Response({'detail':'Enter the six-digit receipt PIN.'},status=400)
+  payment=order.payments.filter(escrow_status=Payment.EscrowStatus.HELD).first()
+  if payment is None: return Response({'detail':'There is no held Mobile Money payment to confirm.'},status=409)
+  if not payment.confirmation_pin_expires_at or timezone.now()>payment.confirmation_pin_expires_at: return Response({'detail':'The receipt PIN has expired.'},status=410)
+  if not check_password(pin,payment.confirmation_pin_hash): return Response({'detail':'The receipt PIN is incorrect.'},status=401)
+  with transaction.atomic():
+   payment=Payment.objects.select_for_update().get(pk=payment.pk)
+   if payment.buyer_confirmed_at: return Response({'detail':'Receipt was already confirmed.','escrow_status':'released'},status=200)
+   payment.buyer_confirmed_at=timezone.now(); payment.save(update_fields=['buyer_confirmed_at'])
+   totals={}
+   for item in order.items.select_related('business'):
+    amount=item.line_total
+    if not item.vat_included: amount+=item.vat_amount
+    totals[item.business.pk]=totals.get(item.business.pk,Decimal('0.00'))+amount
+   transferred=[]
+   try:
+    for business_id,amount in totals.items():
+     business=next(item.business for item in order.items.select_related('business') if item.business_id==business_id)
+     transfer_to_seller(payment,business,amount.quantize(Decimal('0.01'),rounding=ROUND_HALF_UP))
+     transferred.append(str(business_id))
+   except RuntimeError as exc:
+    payment.escrow_status=Payment.EscrowStatus.DISPUTED; payment.save(update_fields=['escrow_status'])
+    return Response({'detail':str(exc)+' The receipt is confirmed and funds remain held for support review. Escrow status: disputed.'},status=503)
+   payment.escrow_status=Payment.EscrowStatus.RELEASED; payment.released_at=timezone.now(); payment.save(update_fields=['escrow_status','released_at'])
+  return Response({'detail':'Receipt confirmed. Funds were released to the seller.','escrow_status':'released','released_businesses':transferred})
  @action(detail=True,methods=['post'],permission_classes=[IsAuthenticated])
  def cancel(self,request,pk=None):
   order=self.get_object()
@@ -378,10 +433,39 @@ class ReviewViewSet(viewsets.ModelViewSet):
   serializer.save(business=business,order=order,customer=request.user,approved=True)
   return Response(serializer.data,status=201)
 class PaymentWebhookView(APIView):
- permission_classes=[IsAdminUser]
+ permission_classes=[AllowAny]
  def post(self,request):
-  # Production adapters must verify the provider signature before calling this state transition.
-  return Response({'detail':'Configure a provider adapter and signature verification before enabling payment webhooks.'},status=501)
+  secret=os.getenv('MOBILE_MONEY_WEBHOOK_SECRET','').strip()
+  signature=request.headers.get('X-Signature','').strip()
+  if not secret: return Response({'detail':'Mobile Money webhooks are not configured.'},status=503)
+  import hashlib,hmac
+  raw=request.body
+  expected=hmac.new(secret.encode(),raw,hashlib.sha256).hexdigest()
+  if not hmac.compare_digest(signature,expected): return Response({'detail':'Invalid webhook signature.'},status=401)
+  provider=str(request.data.get('provider','')).strip()
+  provider_reference=str(request.data.get('provider_reference') or request.data.get('reference') or request.data.get('transaction',{}).get('id','')).strip()
+  status=str(request.data.get('status',request.data.get('success_status',''))).strip().lower()
+  payment=Payment.objects.filter(provider_reference=provider_reference).first() if provider_reference else None
+  if payment is None and provider:
+   payment=Payment.objects.filter(provider=provider).order_by('-created_at').first()
+  if payment is None: return Response({'detail':'Payment was not found.'},status=404)
+  if status in ['succeeded','successful','success','completed','closed','ts'] or request.data.get('success') is True:
+   with transaction.atomic():
+    payment=Payment.objects.select_for_update().get(pk=payment.pk)
+    payment.status=Payment.Status.SUCCEEDED; payment.escrow_status=Payment.EscrowStatus.HELD; payment.held_at=timezone.now()
+    if not payment.confirmation_pin_hash:
+     pin=f'{secrets.randbelow(900000)+100000}'
+     payment.confirmation_pin_hash=make_password(pin); payment.confirmation_pin_expires_at=timezone.now()+timedelta(days=7)
+     payment.save(update_fields=['status','escrow_status','held_at','confirmation_pin_hash','confirmation_pin_expires_at'])
+     from .receipts import send_escrow_pin
+     transaction.on_commit(lambda: send_escrow_pin(payment.order_id,pin))
+    else:
+     payment.save(update_fields=['status','escrow_status','held_at'])
+   return Response({'status':'held','escrow_status':'held'})
+  if status in ['failed','failure','rejected','cancelled','expired']:
+   payment.status=Payment.Status.FAILED; payment.save(update_fields=['status'])
+   return Response({'status':'failed'})
+  return Response({'status':'ignored'},status=202)
 
 class AddressViewSet(viewsets.ModelViewSet):
  serializer_class=AddressSerializer

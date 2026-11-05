@@ -127,6 +127,25 @@ def _send_sms(order, recipient, text_body):
     return delivery
 
 
+def send_escrow_pin(order_id,pin):
+    try:
+        order = Order.objects.select_related('customer').get(pk=order_id)
+        text = (
+            f"Your Imena order {order.reference} payment is held securely. "
+            f"Use receipt PIN {pin} only after receiving every item. "
+            f"The PIN expires in 7 days. Never share it with sellers or delivery workers."
+        )
+        email = order.guest_email or (order.customer.email if order.customer_id else '')
+        html = (
+            f"<p>Your Imena order {escape(order.reference)} payment is held securely.</p>"
+            f"<p><strong>Receipt PIN: {escape(pin)}</strong></p>"
+            "<p>Use it only after receiving every item. Never share this PIN with sellers or delivery workers.</p>"
+        )
+        _send_email(order,email,text,html)
+        _send_sms(order,order.guest_phone,text)
+    except Exception:
+        return
+
 def send_order_receipt(order_id):
     """Send the order receipt to the buyer, recording each channel outcome."""
     try:
