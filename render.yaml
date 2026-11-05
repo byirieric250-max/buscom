@@ -28,3 +28,9 @@ services:
         value: https://buscom-frontend-3fqyy3z0b-byirieric250-maxs-projects.vercel.app,https://buscom-frontend.vercel.app
       - key: CSRF_TRUSTED_ORIGINS
         value: https://buscom-frontend-3fqyy3z0b-byirieric250-maxs-projects.vercel.app,https://buscom-frontend.vercel.app
+      - key: AI_GUIDANCE_API_URL
+        value: https://api.openai.com/v1/chat/completions
+      - key: AI_GUIDANCE_API_KEY
+        sync: false
+      - key: AI_GUIDANCE_MODEL
+        value: gpt-4o-mini

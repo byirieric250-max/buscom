@@ -80,7 +80,7 @@ class GuidanceView(APIView):
   fallback=guides[language][topic]
   api_url=os.getenv('AI_GUIDANCE_API_URL','').strip(); api_key=os.getenv('AI_GUIDANCE_API_KEY','').strip(); model=os.getenv('AI_GUIDANCE_MODEL','gpt-4o-mini').strip()
   if api_url and api_key:
-   payload=json.dumps({'model':model,'messages':[{'role':'system','content':'Translate Rwanda commerce and regulatory steps into clear numbered instructions. Never approve businesses, taxes, or payments or invent official deadlines and fees.'},{'role':'user','content':f'Language: {language}. Context: {context}. Question: {question}. Trusted guidance: {fallback}'}],'temperature':0.2}).encode()
+   payload=json.dumps({'model':model,'messages':[{'role':'system','content':f'You are Imena AI, a helpful multilingual assistant. Answer any lawful, safe user question directly and clearly, including topics outside business commerce when useful. Prefer the requested language: {language}. For Rwanda business, registration, tax, payment, booking, order, and regulatory questions, give simple step-by-step instructions and use this verified platform guidance as a fact check: {fallback}. Never approve a payment, legal status, tax status, visa, permit, or business verification. Never invent official fees, deadlines, legal requirements, provider credentials, or approval decisions. When information depends on an authority or changes over time, say to confirm with the relevant authority. Do not reveal secrets or execute transactions.'},{'role':'user','content':question}],'temperature':0.2}).encode()
    req=urllib_request.Request(api_url,data=payload,headers={'Content-Type':'application/json','Authorization':f'Bearer {api_key}'},method='POST')
    try:
     with urllib_request.urlopen(req,timeout=12) as response:

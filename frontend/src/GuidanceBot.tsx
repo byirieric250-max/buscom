@@ -10,7 +10,7 @@ export default function GuidanceBot(){
  const [language,setLanguage]=useState('en');
  const [question,setQuestion]=useState('');
  const [busy,setBusy]=useState(false);
- const [messages,setMessages]=useState<Message[]>([{role:'bot',text:'How can I help you with business registration, VAT, payments, orders, or bookings?'}]);
+ const [messages,setMessages]=useState<Message[]>([{role:'bot',text:'Ask me anything. I can explain business registration, VAT, payments, orders, bookings, or other questions step by step.'}]);
  const ask=async(e:FormEvent)=>{e.preventDefault();const text=question.trim();if(text.length<3||busy)return;setMessages(m=>[...m,{role:'user',text}]);setQuestion('');setBusy(true);try{const response=await fetch(apiUrl('/api/ai-guidance/'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:text,language,context:'general'})});const data=await response.json();if(!response.ok)throw new Error(data.detail||'The guidance service is unavailable.');setMessages(m=>[...m,{role:'bot',text:data.answer}])}catch(error){setMessages(m=>[...m,{role:'bot',text:(error as Error).message}])}finally{setBusy(false)}};
  return <>
   {open&&<section className="guidance-panel" aria-label="Business guidance assistant">
