@@ -20,8 +20,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.authtoken.models import Token
-from .models import Business, BusinessVerification, Category, Product, Order, OrderItem, Booking, Service, Payment, InventoryMovement, AuditLog, Review
-from .serializers import BusinessSerializer, CategorySerializer, ProductSerializer, OrderSerializer, BookingSerializer, ServiceSerializer, ReviewSerializer
+from .models import Address, AuditLog, Booking, Business, BusinessVerification, Category, Complaint, Conversation, Favorite, InventoryMovement, Message, Notification, Order, OrderItem, Payment, Product, Review, Service
+from .serializers import AddressSerializer, BookingSerializer, BusinessSerializer, CategorySerializer, ComplaintSerializer, ConversationSerializer, FavoriteSerializer, NotificationSerializer, OrderSerializer, ProductSerializer, ReviewSerializer, ServiceSerializer
 from .receipts import send_order_receipt
 
 class HealthView(APIView):
@@ -318,3 +318,73 @@ class PaymentWebhookView(APIView):
  def post(self,request):
   # Production adapters must verify the provider signature before calling this state transition.
   return Response({'detail':'Configure a provider adapter and signature verification before enabling payment webhooks.'},status=501)
+
+class AddressViewSet(viewsets.ModelViewSet):
+ serializer_class=AddressSerializer
+ permission_classes=[IsAuthenticated]
+ def get_queryset(self): return Address.objects.filter(user=self.request.user).order_by('-is_default','-id')
+ def perform_create(self,serializer):
+  if serializer.validated_data.get('is_default'): Address.objects.filter(user=self.request.user,is_default=True).update(is_default=False)
+  serializer.save(user=self.request.user)
+ def perform_update(self,serializer):
+  if serializer.validated_data.get('is_default'): Address.objects.filter(user=self.request.user,is_default=True).exclude(pk=serializer.instance.pk).update(is_default=False)
+  serializer.save()
+
+class FavoriteViewSet(viewsets.ModelViewSet):
+ serializer_class=FavoriteSerializer
+ permission_classes=[IsAuthenticated]
+ http_method_names=['get','post','delete','head','options']
+ def get_queryset(self): return Favorite.objects.filter(user=self.request.user).select_related('business','product')
+ def perform_create(self,serializer):
+  serializer.save(user=self.request.user)
+
+class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
+ serializer_class=NotificationSerializer
+ permission_classes=[IsAuthenticated]
+ def get_queryset(self): return Notification.objects.filter(user=self.request.user).order_by('-created_at')
+ @action(detail=True,methods=['post'])
+ def read(self,request,pk=None):
+  notification=self.get_object()
+  if notification.read_at is None:
+   notification.read_at=timezone.now()
+   notification.save(update_fields=['read_at'])
+  return Response(NotificationSerializer(notification).data)
+ @action(detail=False,methods=['post'])
+ def read_all(self,request):
+  updated=self.get_queryset().filter(read_at__isnull=True).update(read_at=timezone.now())
+  return Response({'updated':updated})
+
+class ConversationViewSet(viewsets.ModelViewSet):
+ serializer_class=ConversationSerializer
+ permission_classes=[IsAuthenticated]
+ http_method_names=['get','post','head','options']
+ def get_queryset(self):
+  owned=Business.objects.filter(Q(owner=self.request.user)|Q(members__user=self.request.user,members__active=True,members__role__in=['owner','manager','staff']))
+  return Conversation.objects.filter(Q(customer=self.request.user)|Q(business__in=owned)).distinct().select_related('business','customer').prefetch_related('messages__sender').order_by('-created_at')
+ def perform_create(self,serializer):
+  serializer.save(customer=self.request.user)
+ def create(self,request,*args,**kwargs):
+  business_id=request.data.get('business')
+  business=Business.objects.filter(pk=business_id,active=True).first()
+  if not business: return Response({'detail':'Choose an available business.'},status=400)
+  conversation,_=Conversation.objects.get_or_create(business=business,customer=request.user)
+  body=str(request.data.get('message','')).strip()
+  if body: Message.objects.create(conversation=conversation,sender=request.user,body=body[:5000])
+  return Response(ConversationSerializer(conversation).data,status=201)
+ @action(detail=True,methods=['post'])
+ def send(self,request,pk=None):
+  conversation=self.get_object()
+  body=str(request.data.get('body','')).strip()
+  if not body or len(body)>5000: return Response({'detail':'Message content must be between 1 and 5000 characters.'},status=400)
+  message=Message.objects.create(conversation=conversation,sender=request.user,body=body)
+  return Response({'id':message.id,'sender':message.sender.username,'body':message.body,'created_at':message.created_at},status=201)
+
+class ComplaintViewSet(viewsets.ModelViewSet):
+ serializer_class=ComplaintSerializer
+ permission_classes=[IsAuthenticated]
+ http_method_names=['get','post','head','options']
+ def get_queryset(self):
+  owned=Business.objects.filter(Q(owner=self.request.user)|Q(members__user=self.request.user,members__active=True,members__role__in=['owner','manager']))
+  if self.request.user.is_staff: return Complaint.objects.all().select_related('business','reporter')
+  return Complaint.objects.filter(Q(reporter=self.request.user)|Q(business__in=owned)).distinct().select_related('business','reporter').order_by('-created_at')
+ def perform_create(self,serializer): serializer.save(reporter=self.request.user)

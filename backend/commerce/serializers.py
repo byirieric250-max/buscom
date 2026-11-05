@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Business, Category, Product, Order, OrderItem, Booking, Service, Review
+from .models import Address, Business, Category, Complaint, Conversation, Favorite, Message, Notification, Product, Order, OrderItem, Booking, Service, Review
 class CategorySerializer(serializers.ModelSerializer):
  class Meta: model=Category; fields='__all__'
 class BusinessSerializer(serializers.ModelSerializer):
@@ -38,3 +38,29 @@ class ReviewSerializer(serializers.ModelSerializer):
  customer_name=serializers.CharField(source='customer.first_name',read_only=True)
  class Meta:
   model=Review; fields=['id','business','customer_name','order','rating','body','created_at']; read_only_fields=['id','customer_name','created_at']
+
+class AddressSerializer(serializers.ModelSerializer):
+ class Meta: model=Address; fields=['id','label','district','address_line','phone','is_default']; read_only_fields=['id']
+
+class FavoriteSerializer(serializers.ModelSerializer):
+ class Meta: model=Favorite; fields=['id','business','product']
+ def validate(self,data):
+  if bool(data.get('business')) == bool(data.get('product')): raise serializers.ValidationError('Choose exactly one business or product.')
+  request=self.context.get('request')
+  if request and Favorite.objects.filter(user=request.user,business=data.get('business'),product=data.get('product')).exists():
+   raise serializers.ValidationError('This find is already saved.')
+  return data
+
+class NotificationSerializer(serializers.ModelSerializer):
+ class Meta: model=Notification; fields=['id','title','body','read_at','created_at']; read_only_fields=['id','title','body','created_at']
+
+class MessageSerializer(serializers.ModelSerializer):
+ sender_name=serializers.CharField(source='sender.username',read_only=True)
+ class Meta: model=Message; fields=['id','sender','sender_name','body','created_at']; read_only_fields=['id','sender','sender_name','created_at']
+
+class ConversationSerializer(serializers.ModelSerializer):
+ business_name=serializers.CharField(source='business.name',read_only=True); messages=MessageSerializer(many=True,read_only=True)
+ class Meta: model=Conversation; fields=['id','business','business_name','customer','messages','created_at']; read_only_fields=['id','customer','created_at']
+
+class ComplaintSerializer(serializers.ModelSerializer):
+ class Meta: model=Complaint; fields=['id','business','reason','details','status','created_at']; read_only_fields=['id','status','created_at']
