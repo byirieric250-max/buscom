@@ -8,7 +8,7 @@ class MarketplaceOrderTests(TestCase):
  def setUp(self):
   user=get_user_model().objects.create_user(username='maker',password='Secure-test-password-123')
   category=Category.objects.create(name='Home',slug='home')
-  business=Business.objects.create(owner=user,name='Demo baskets',slug='demo-baskets',category=category,district='Kigali',phone='+250000000000')
+  business=Business.objects.create(owner=user,name='Demo baskets',slug='demo-baskets',category=category,district='Kigali',phone='+250000000000',verification_status=Business.Verification.VERIFIED)
   self.product=Product.objects.create(business=business,category=category,name='Basket',price=Decimal('28500.00'),stock=3)
   self.client=APIClient()
  def test_guest_order_uses_server_price_and_saves_snapshot(self):

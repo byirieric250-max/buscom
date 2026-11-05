@@ -177,11 +177,12 @@ class ProductViewSet(viewsets.ModelViewSet):
  def perform_destroy(self,instance):
   if not (instance.business.owner_id==self.request.user.id or instance.business.members.filter(user=self.request.user,active=True,role__in=['owner','manager']).exists()): raise PermissionDenied('Business ownership or manager access is required.')
   instance.delete()
-class OrderViewSet(viewsets.ReadOnlyModelViewSet):
+class OrderViewSet(viewsets.ModelViewSet):
  serializer_class=OrderSerializer
+ http_method_names=['get','post','head','options']
  def get_permissions(self):
-  if self.action=='create': return [IsAuthenticated()]
-  return super().get_permissions()
+  if self.action in ['create','track','list']: return [AllowAny()]
+  return [IsAuthenticated()]
  def get_queryset(self):
   if self.request.user.is_staff: return Order.objects.prefetch_related('items').all()
   if self.request.user.is_authenticated: return Order.objects.filter(customer=self.request.user).prefetch_related('items')
