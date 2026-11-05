@@ -1,4 +1,8 @@
+import json
+import os
 import secrets
+from urllib import request as urllib_request
+from urllib.error import HTTPError, URLError
 import mimetypes
 from pathlib import Path
 from datetime import timedelta
@@ -27,6 +31,66 @@ from .receipts import send_order_receipt
 class HealthView(APIView):
  permission_classes=[AllowAny]
  def get(self,request): return Response({'status':'ok','service':'Imena Rwanda Commerce API'})
+
+class GuidanceView(APIView):
+ permission_classes=[AllowAny]
+ def post(self,request):
+  question=str(request.data.get('question','')).strip()
+  language=str(request.data.get('language','en')).lower()
+  context=str(request.data.get('context','general')).strip().lower()
+  if len(question)<3 or len(question)>500:
+   return Response({'detail':'Ask a question between 3 and 500 characters.'},status=400)
+  language='rw' if language in ('rw','kinyarwanda') else 'fr' if language=='fr' or language.startswith('fran') else 'sw' if language=='sw' else 'en'
+  guides={
+   'en':{
+    'verification':'Business registration: 1. Prepare your RDB registration, TIN, and owner ID or passport. 2. Submit the business application and supporting PDF/JPG/PNG documents. 3. An administrator reviews the application. 4. A listing is public only within its approval rules. Do not treat a submitted application as approval.',
+    'vat':'VAT steps: 1. Confirm whether your business is VAT registered. 2. Enter the TIN and tax registration details. 3. Upload valid supporting documents. 4. Confirm the correct VAT category. The platform calculates VAT but cannot replace advice from RRA or a tax professional.',
+    'payment':'Payment safety: 1. Choose an enabled payment method. 2. Do not send payment outside the checkout flow. 3. A reference entered by a customer is not provider proof. 4. Treat a payment as confirmed only after a trusted server-side provider response.',
+    'booking':'Booking steps: 1. Choose the service and date. 2. Check availability and remaining capacity. 3. Submit guest details and keep the booking reference. 4. Contact the business to change or cancel it.',
+    'order':'Order steps: 1. Review the listing and quantity. 2. Enter delivery details. 3. Verify the server-calculated total. 4. Keep your order reference. 5. Tracking shows only the status confirmed by the platform.',
+    'general':'Choose a category and review a listing, then check its price, availability, and delivery details before ordering or booking. Confirm important legal, tax, registration, or payment decisions with the relevant Rwandan authority.'
+   },
+   'rw':{
+    'verification':'Kwiyandikisha: 1. Tegura RDB, TIN, n’indangamuntu cyangwa pasiporo. 2. Ohereza form n’inyandiko za PDF/JPG/PNG. 3. Umuyobozi agenzura dosiye. 4. Ntukite ubucuruzi bwemejwe imbere yuko busuzumwa kandi bwemezwa.',
+    'vat':'Intambwe za VAT: 1. Menya niba ubucuruzi buri muri VAT. 2. Andika TIN n’amakuru y’imisoro. 3. Ohereza inyandiko zemewe. 4. Hitamo icyiciro cya VAT gikwiye. Baza RRA cyangwa umuhanga mu misoro ku byemezo.',
+    'payment':'Umutekano w’ishyura: 1. Hitamo uburyo bwo kwishyura bwerekanwe. 2. Ntuzishyure hanze ya sisitemu. 3. Nomero yandinzwe ntiyemeza ko byishyuwe. 4. Icyemezo gitangwa gusa na provider yizerwa ku seriveri.',
+    'booking':'Kubika: 1. Hitamo serivisi n’itariki. 2. Reba umwanya. 3. Ohereza amakuru kandi ubike numero y’icyemezo. 4. Saba guhindura cyangwa guhagarika ku bucuruzi.',
+    'order':'Gutumiza: 1. Reba igicuruzwa n’ingano. 2. Andika aho byoherezwa. 3. Reba igiciro cyabazwe na serveri. 4. Bika numero y’ituma. 5. Kurikirana uko itumanaho ryemejwe.',
+    'general':'Hitamo icyiciro, reba ubucuruzi, igiciro n’aho bishobora kuba, nyuma utumize cyangwa ubike. Amategeko n’imisoro bishobora guhinduka; baza inzego z’U Rwanda zibishinzwe.'
+   },
+   'sw':{
+    'verification':'Hatua za usajili: 1. Andaa RDB, TIN, kitambulisho au pasipoti. 2. Wasilisha fomu na hati za PDF/JPG/PNG. 3. Msimamizi hukagua hati. 4. Orodha haithibitiki hadi idhini itolewe.',
+    'vat':'Hatua za VAT: 1. Hakikisha biashara yako imesajiliwa kwa VAT. 2. Weka TIN na taarifa za kodi. 3. Pakia hati sahihi. 4. Chagua kiwango cha VAT. Hakiki sheria na RRA au mtaalamu wa kodi.',
+    'payment':'Usalama wa malipo: 1. Chagua njia iliyowezeshwa. 2. Usilipa nje ya mfumo. 3. Rejea ya mteja si uthibitisho wa mtoa huduma. 4. Malipo yanathibitishwa tu na majibu ya mtoa huduma yaliyotumwa na seva.',
+    'booking':'Hatua za kuhifadhi: 1. Chagua huduma na tarehe. 2. Angalia nafasi. 3. Tuma maelezo na hifadhi rejea. 4. Wasiliana ili kubadilisha au kughairi.',
+    'order':'Hatua za kuagiza: 1. Angalia bidhaa na kiasi. 2. Weka anwani ya utoaji. 3. Hakiki jumla iliyokokotwa na seva. 4. Hifadhi rejea ya agizo. 5. Hali inaonekana tu ikiwa imethibitishwa na mfumo.',
+    'general':'Chagua aina, kagua biashara, bei na upatikanaji, kisha tuma agizo au uhifadhi. Kwa maamuzi muhimu ya sheria, kodi au malipo, thibitisha na mamlaka husika ya Rwanda.'
+   },
+   'fr':{
+    'verification':'Inscription : 1. Préparez la RDB, le TIN et une pièce d’identité ou passeport. 2. Envoyez la demande avec des PDF/JPG/PNG valides. 3. Un administrateur examine le dossier. 4. Une inscription n’est approuvée qu’après validation officielle.',
+    'vat':'Étapes TVA : 1. Vérifiez l’enregistrement TVA. 2. Indiquez le TIN et les renseignements fiscaux. 3. Téléversez les justificatifs. 4. Choisissez le bon taux TVA. Demandez conseil à l’administration fiscale ou à un professionnel.',
+    'payment':'Sécurité du paiement : 1. Choisissez une méthode activée. 2. Ne payez jamais hors du site. 3. Une référence saisie ne prouve pas le paiement. 4. Un paiement est confirmé uniquement par une réponse fiable du fournisseur côté serveur.',
+    'booking':'Étapes de réservation : 1. Choisissez le service et la date. 2. Vérifiez les places disponibles. 3. Envoyez vos coordonnées et conservez la référence. 4. Contactez l’entreprise pour modifier ou annuler.',
+    'order':'Étapes de commande : 1. Vérifiez l’article et la quantité. 2. Indiquez la livraison. 3. Vérifiez le total calculé par le serveur. 4. Conservez la référence. 5. Suivez uniquement le statut confirmé par la plateforme.',
+    'general':'Choisissez une catégorie, consultez une entreprise, puis vérifiez le prix, la disponibilité et la livraison avant de commander ou réserver. Confirmez les décisions légales ou fiscales auprès de l’autorité rwandaise compétente.'
+   }
+  }
+  text=question.lower()
+  topic='verification' if any(w in text for w in ('register','registration','verify','verification','rdb','kwiyandikisha','usajili','inscription')) else 'vat' if any(w in text for w in ('vat','tax','rra','tin','imisoro','tva')) else 'payment' if any(w in text for w in ('pay','payment','momo','airtel','refund','ishyura','malipo')) else 'booking' if any(w in text for w in ('book','booking','reservation','kubika','hifadhi')) else 'order' if any(w in text for w in ('order','checkout','delivery','stock','ituma','agizo','commande')) else context if context in guides[language] else 'general'
+  fallback=guides[language][topic]
+  api_url=os.getenv('AI_GUIDANCE_API_URL','').strip(); api_key=os.getenv('AI_GUIDANCE_API_KEY','').strip(); model=os.getenv('AI_GUIDANCE_MODEL','gpt-4o-mini').strip()
+  if api_url and api_key:
+   payload=json.dumps({'model':model,'messages':[{'role':'system','content':'Translate Rwanda commerce and regulatory steps into clear numbered instructions. Never approve businesses, taxes, or payments or invent official deadlines and fees.'},{'role':'user','content':f'Language: {language}. Context: {context}. Question: {question}. Trusted guidance: {fallback}'}],'temperature':0.2}).encode()
+   req=urllib_request.Request(api_url,data=payload,headers={'Content-Type':'application/json','Authorization':f'Bearer {api_key}'},method='POST')
+   try:
+    with urllib_request.urlopen(req,timeout=12) as response:
+     result=json.loads(response.read().decode())
+    answer=result.get('choices',[{}])[0].get('message',{}).get('content','').strip()
+    if answer:
+     return Response({'answer':answer,'language':language,'topic':topic,'provider':'ai_configured','disclaimer':'This guidance is informational and not legal or tax advice.'})
+   except (HTTPError,URLError,TimeoutError,json.JSONDecodeError,IndexError,KeyError):
+    pass
+  return Response({'answer':fallback,'language':language,'topic':topic,'provider':'guidance_fallback','disclaimer':'This guidance is informational and not legal or tax advice.'})
 class PrivateMediaView(APIView):
  permission_classes=[IsAdminUser]
  def get(self,request,path):

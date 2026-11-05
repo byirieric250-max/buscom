@@ -33,6 +33,21 @@ class MarketplaceOrderTests(TestCase):
   self.assertEqual(len(self.client.get('/api/orders/').data),0)
   self.assertEqual(Order.objects.filter(pk=order_id).count(),1)
 
+class GuidanceApiTests(TestCase):
+ def setUp(self):
+  self.client=APIClient()
+ def test_guidance_fallback_is_public_multilingual_and_validates_input(self):
+  response=self.client.post('/api/ai-guidance/',{'question':'How do I verify my business?','language':'en','context':'general'},format='json')
+  self.assertEqual(response.status_code,200)
+  self.assertEqual(response.data['provider'],'guidance_fallback')
+  self.assertEqual(response.data['topic'],'verification')
+  self.assertIn('Business registration',response.data['answer'])
+  rw=self.client.post('/api/ai-guidance/',{'question':'Nigute nandikisha ubucuruzi?','language':'rw'},format='json')
+  self.assertEqual(rw.status_code,200)
+  self.assertEqual(rw.data['language'],'rw')
+  invalid=self.client.post('/api/ai-guidance/',{'question':'hi'},format='json')
+  self.assertEqual(invalid.status_code,400)
+
 class MarketplaceAccountServiceTests(TestCase):
  def setUp(self):
   self.owner=get_user_model().objects.create_user(username='service-owner',password='Secure-test-password-123')
