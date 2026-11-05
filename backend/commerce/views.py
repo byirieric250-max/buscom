@@ -32,7 +32,10 @@ from .payments import request_collection, transfer_to_seller
 
 class HealthView(APIView):
  permission_classes=[AllowAny]
- def get(self,request): return Response({'status':'ok','service':'Imena Rwanda Commerce API'})
+ def get(self,request):
+  mtn_ready=bool(os.getenv('MTN_MOMO_SUBSCRIPTION_KEY','') and os.getenv('MTN_MOMO_API_USER','') and os.getenv('MTN_MOMO_API_KEY',''))
+  airtel_ready=bool(os.getenv('AIRTEL_MONEY_CLIENT_ID','') and os.getenv('AIRTEL_MONEY_CLIENT_SECRET','') and os.getenv('AIRTEL_MONEY_COLLECTION_URL',''))
+  return Response({'status':'ok','service':'Imena Rwanda Commerce API','mobile_money':{'environment':'sandbox' if os.getenv('MTN_MOMO_ENVIRONMENT','sandbox')=='sandbox' else 'production','mtn_momo':mtn_ready,'airtel_money':airtel_ready}})
 
 class GuidanceView(APIView):
  permission_classes=[AllowAny]

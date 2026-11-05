@@ -52,6 +52,8 @@ services:
         sync: false
       - key: AIRTEL_MONEY_TOKEN_URL
         sync: false
+      - key: MOBILE_MONEY_SANDBOX
+        value: "true"
       - key: AI_GUIDANCE_API_URL
         value: https://api.openai.com/v1/chat/completions
       - key: AI_GUIDANCE_API_KEY
